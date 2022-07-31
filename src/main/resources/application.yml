@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    driverClassName: com.mysql.jdbc.Driver
+    url: ${MYSQL_JDBC_URL}
+    username: ${MYSQL_USER}
+    password: ${MYSQL_PASS}
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
+    hibernate.ddl-auto: validate
