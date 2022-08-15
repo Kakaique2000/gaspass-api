@@ -1,0 +1,191 @@
+  function addTicket($p=null, $return=false){
+        if($permission = $this->hasPermission(__FUNCTION__)){
+            if(empty($p)) $p = $this->input->post();
+
+            $quantidade = (!empty($p['quantidade']))? $p['quantidade'] : null;
+            $pacote_ticket_id = (!empty($p['pacote_ticket_id']))? $p['pacote_ticket_id'] : null;
+            if(!empty($p['quantidade'])) unset($p['quantidade']);
+
+            if(empty($p['grupo_usuario_id'])){ $p['grupo_usuario_id'] = 1; }
+            if($permission->user->tipo_usuario_id != 1 && $permission->user->id != 180172) $p['perfil_de_usuario_id'] = $permission->user->id;
+            //if(empty($p['perfil_de_usuario_id'])){ $p['perfil_de_usuario_id'] = $permission->user->id; }
+            if(empty($p['valid_until'])){ $p['valid_until'] = date("Y-m-d H:i:s",strtotime(date("Y-m-d H:i:s"))+60*60*3); }
+            $tipo_desconto = (!empty($p['tipo_desconto']))? $p['tipo_desconto'] : null;
+
+            $p['status'] = 1;
+            $p['created_at'] = date("Y-m-d H:i:s");
+            $p['updated_at'] = date("Y-m-d H:i:s");
+
+
+            $grupo_usuario = $this->o->setTable('grupo_usuario')->getById($p['grupo_usuario_id']);
+            if($permission->user->tipo_usuario_id == 2){
+                if(!empty($grupo_usuario)){
+                    $inGroup = $this->o->setTable('perfil_de_usuario_grupo_usuario')->getBy(array(
+                        'perfil_de_usuario_id'=>$permission->user->id,
+                        'grupo_usuario_id'=>$grupo_usuario->id,
+                        'status'=>1
+                    ));
+                    if(empty($inGroup) && $grupo_usuario->id != 1){ return $this->generateResponse(false, 2); }
+                }
+            }
+
+            if(!empty($p['posto_id'])){
+                $posto = $this->o->setTable('posto')->getById($p['posto_id']);
+            }
+            if(!empty($p['rede_posto_id'])){
+                $rede_posto = $this->o->setTable('rede_posto')->getById($p['rede_posto_id']);
+            }else if(!empty($posto)){
+                $rede_posto = $this->o->setTable('rede_posto')->getById($posto->rede_posto_id);
+            }
+
+            if(!empty($pacote_ticket_id)){
+                $pacote_ticket = $this->o->setTable('pacote_ticket')->getById($p['pacote_ticket_id']);
+            }
+
+            if(empty($pacote_ticket)){
+                $pacote_ticket = $this->o->setTable('pacote_ticket')->get(array(
+                    'comprador_id' => $grupo_usuario->comprador_id,
+                    'grupo_usuario_id' => $grupo_usuario->id,
+                    'posto_id' => @$posto->id,
+                    'status' => 1
+                ));
+            }
+
+            if(empty($pacote_ticket) && !empty($rede_posto)){
+                $pacote_ticket = $this->o->setTable('pacote_ticket')->get(array(
+                    'comprador_id'=>$grupo_usuario->comprador_id,
+                    'grupo_usuario_id'=>$grupo_usuario->id,
+                    'rede_posto_id'=>$rede_posto->id,
+                    'posto_id'=>0,
+                    'status' => 1
+                ));
+            }
+
+            if(empty($pacote_ticket)){
+                $pacote_ticket = $this->o->setTable('pacote_ticket')->get(array(
+                    'comprador_id'=>$grupo_usuario->comprador_id,
+                    'grupo_usuario_id'=>$grupo_usuario->id,
+                    'rede_posto_id'=>0,
+                    'posto_id'=>0,
+                    'status' => 1
+                ));
+            }
+
+            if(empty($pacote_ticket)){
+                $pacote_ticket = $this->o->setTable('pacote_ticket')->get(array(
+                    'comprador_id'=>$grupo_usuario->comprador_id,
+                    'grupo_usuario_id'=>0,
+                    'posto_id'=>@$posto->id,
+                    'status'=>1
+                ));
+                if(empty($pacote_ticket) && !empty($rede_posto)){
+                    $pacote_ticket = $this->o->setTable('pacote_ticket')->get(array(
+                        'comprador_id'=>$grupo_usuario->comprador_id,
+                        'grupo_usuario_id'=>0,
+                        'rede_posto_id'=>$rede_posto->id,
+                        'posto_id'=>0,
+                        'status' => 1
+                    ));
+                }
+            }
+
+            if(empty($pacote_ticket)){
+                $pacote_ticket = $this->o->setTable('pacote_ticket')->get(array(
+                    'comprador_id'=>$grupo_usuario->comprador_id,
+                    'grupo_usuario_id'=>0,
+                    'rede_posto_id'=>0,
+                    'posto_id'=>0,
+                    'status' => 1
+                ));
+            }
+
+            if(empty($pacote_ticket)){
+            	log_message('error', 'CRIAR TICKET COM PACOTE VAZIO '. json_encode($p). ' |USER| '. $permission->user->nome.' '.$permission->user->id);
+                return $this->generateResponse(false, 18, $grupo_usuario->comprador_id, $return);
+            }
+
+            if(is_array($pacote_ticket)){ $pacote_ticket = $pacote_ticket[0]; }
+            if($pacote_ticket->limit_per_user != null){
+                $ticket = $this->o->setTable('ticket')
+                    ->setWhere(array(
+                        'pacote_ticket_id'=>$pacote_ticket->id,
+                        'perfil_de_usuario_id'=>$permission->user->id
+                    ))
+                    ->setWhereIn('status', array(0, 1))
+                    ->get();
+                if(!empty($ticket)) return $this->generateResponse(false, 18, null, $return);
+            }
+
+            $pacote_ticket = $this->getExtraData($pacote_ticket);
+            $pacote_ticket = $this->verificaValidadePacoteTicket($pacote_ticket);
+
+            if($pacote_ticket->status == 0){
+                return $this->generateResponse(false, 18, null, $return);
+            }
+            if($pacote_ticket->status == 3){
+                return $this->generateResponse(false, 18, null, $return);
+            }
+            if($pacote_ticket->status == 2){
+                return $this->generateResponse(false, 18, null, $return);
+            }
+            if($pacote_ticket->status == 1) {
+
+                if(!empty($p['combustivel_id'])){
+                    //Pega os dados do desconto
+                    $this->o->setTable('desconto');
+                    $parametros_desconto = array();
+                    $parametros_desconto['combustivel_id'] = $p['combustivel_id'];
+                    if(!empty($pacote_ticket->posto_id)){ $parametros_desconto['posto_id'] = $pacote_ticket->posto_id; }
+                    if(!empty($pacote_ticket->rede_posto_id)){ $parametros_desconto['rede_posto_id'] = $pacote_ticket->rede_posto_id; }
+                    if(!empty($grupo_usuario->id)){ $parametros_desconto['grupo_usuario_id'] = $grupo_usuario->id; }
+
+                    $desconto = $this->o->getBy($parametros_desconto);
+                    if (!empty($desconto)) {
+                        if(empty($tipo_desconto)) $p['tipo_desconto'] = $desconto->tipo_desconto;
+                        $p['desconto'] = $desconto->valor;
+                    }
+                }
+
+                $p['comprador_id'] = $grupo_usuario->comprador_id;
+                $p['pacote_ticket_id'] = $pacote_ticket->id;
+
+                if($quantidade == null){
+                    // $lenght = (!empty($p['carteira_id']))? 7 : 6;
+                    $lenght = 6;
+                    $p['codigo'] = $this->geraCodigo($lenght);
+                    $this->o->setTable('ticket');
+                    $insertId = $this->o->post($p);
+                    if ($insertId) {
+                        $codigo = $this->o->getById($insertId);
+                        $codigo = $this->checkCodigo($p = array('codigo' => $codigo->codigo));
+                        $codigo->response->grupo_usuario = $this->o->setTable('grupo_usuario')->getById($codigo->response->grupo_usuario_id);
+                        $codigo->response->grupo_usuario->comprador = $this->o->setTable('comprador')->getById($codigo->response->grupo_usuario->comprador_id);
+
+
+                        if(!empty($permission->user->lat) && !empty($permission->user->lng)){
+                            if(floatval($permission->user->lat < -27.5)){
+                                $codigo->response->codigo = '420409';
+                            }
+                        }
+                        return $this->generateResponse(true, 1, $codigo->response, $return);
+                    } else {
+                        return $this->generateResponse(false, 0, null, $return);
+                    }
+                }else{
+                    $tickets = array();
+                    $parametros = $p;
+                    $parametros['pacote_ticket_id'] = $pacote_ticket_id;
+                    $tickets_validos = $this->geraCodigos(6, $quantidade, $pacote_ticket_id);
+                    foreach($tickets_validos as $ticket){
+                        $tickets[] = array_merge($parametros, array('codigo'=>$ticket));
+                    }
+                    $this->o->setTable('ticket')->postMultiple($tickets);
+                    return $this->generateResponse(true, 1, $this->o->getOnlyIds($tickets,'codigo'), $return);
+                }
+
+            }
+
+        }else{
+            $this->generateResponse(false, 2);
+        }
+    }

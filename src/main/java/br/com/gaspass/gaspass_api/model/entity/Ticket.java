@@ -2,6 +2,7 @@ package br.com.gaspass.gaspass_api.model.entity;
 
 import lombok.*;
 import org.hibernate.Hibernate;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import javax.persistence.*;
 import java.time.Instant;
@@ -19,8 +20,9 @@ public class Ticket {
     @Column(name = "id", nullable = false)
     private Integer id;
 
-    @Column(name = "pacote_ticket_id", nullable = false)
-    private Integer pacoteTicketId;
+    @JoinColumn(name = "pacote_ticket_id", nullable = false)
+    @ManyToOne()
+    private PacoteTicket pacoteTicket;
 
     @Column(name = "desconto", nullable = false)
     private Double desconto;
@@ -49,29 +51,35 @@ public class Ticket {
     @Column(name = "sf_guard_user_id")
     private Integer sfGuardUserId;
 
-    @Column(name = "perfil_de_usuario_id")
-    private Integer perfilDeUsuarioId;
+    @JoinColumn(name = "perfil_de_usuario_id")
+    @ManyToOne()
+    private PerfilDeUsuario perfilDeUsuarioId;
 
     @Column(name = "veiculo_id")
     private Integer veiculoId;
 
-    @Column(name = "combustivel_id", nullable = false)
-    private Integer combustivelId;
+    @JoinColumn(name = "combustivel_id", nullable = false)
+    @ManyToOne()
+    private Combustivel combustivel;
 
     @Column(name = "codigo", length = 9)
     private String codigo;
 
-    @Column(name = "posto_id")
-    private Integer postoId;
+    @JoinColumn(name = "posto_id")
+    @ManyToOne()
+    private Posto posto;
 
-    @Column(name = "rede_posto_id")
-    private Integer redePostoId;
+    @JoinColumn(name = "rede_posto_id")
+    @ManyToOne()
+    private RedePosto redePosto;
 
-    @Column(name = "grupo_usuario_id", nullable = false)
-    private Integer grupoUsuarioId;
+    @JoinColumn(name = "grupo_usuario_id")
+    @ManyToOne()
+    private GrupoUsuario grupoUsuario;
 
-    @Column(name = "comprador_id", nullable = false)
-    private Integer compradorId;
+    @JoinColumn(name = "comprador_id", nullable = false)
+    @ManyToOne()
+    private Comprador comprador;
 
     @Column(name = "notificacao", length = 512)
     private String notificacao;
@@ -82,8 +90,9 @@ public class Ticket {
     @Column(name = "payment_token", length = 512)
     private String paymentToken;
 
-    @Column(name = "carteira_id")
-    private Integer carteiraId;
+    @JoinColumn(name = "carteira_id")
+    @ManyToOne()
+    private Carteira carteira;
 
     @Column(name = "refund")
     private Integer refund;
@@ -94,6 +103,7 @@ public class Ticket {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @UpdateTimestamp
     @Column(name = "updated_at")
     private Instant updatedAt;
 
